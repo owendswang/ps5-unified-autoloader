@@ -41,8 +41,9 @@ third_payload.elf
 ## Building
 
 ### Requirements
-- Docker
-- git (with submodules, only needed for `-b` builds)
+- A locally installed PS5 payload SDK (default: `/opt/ps5-payload-sdk`)
+- An existing `pldmgr.elf` in the project root
+- `make` and `xxd`
 
 ### Clone
 ```bash
@@ -50,26 +51,35 @@ git clone https://github.com/itsPLK/ps5-unified-autoloader.git
 cd ps5-unified-autoloader
 ```
 
-### Build (download pre-built pldmgr — recommended)
+### Build
 ```bash
 ./build_release.sh
-# or explicitly:
-./build_release.sh -d
 ```
 
-### Build (compile pldmgr from source)
-```bash
-git submodule update --init --recursive
-./build_release.sh -b
-```
-
-This uses pldmgr's own Docker image (which includes libmicrohttpd, mbedTLS, libcurl)
-to build pldmgr, then uses a separate lean SDK image to build the autoloader.
+The script does not download or install dependencies and does not use Docker.
+Set `PS5_PAYLOAD_SDK` if the SDK is installed somewhere other than the default.
+Missing requirements or compilation errors stop the build immediately.
 
 ### Output
 ```
 autoloader_v0.1.0_abc1234.elf
 ```
+
+### Web shortcut
+
+Immediately before it searches for and executes `autoload.txt`, the autoloader
+checks the installed shortcut against the embedded `assets/param.json` and
+`assets/icon0.png`:
+
+```bash
+./build_release.sh
+```
+
+If both installed files already match, nothing is written. Otherwise the two
+files are overwritten and the title is registered directly. The installer
+does not uninstall the existing title first and accepts no configuration
+arguments. When changing the shortcut, keep `assets/param.json` and
+`SHORTCUT_TITLE_ID` in `include/shortcut_installer.h` consistent.
 
 ## Structure
 

@@ -14,6 +14,7 @@
 #include "app_killer.h"
 #include "launcher.h"
 #include "notification.h"
+#include "shortcut_installer.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -221,6 +222,13 @@ int main(void) {
         printf("[autoloader] ERROR: elfldr did not become available. Aborting.\n");
         fflush(stdout);
         return -1;
+    }
+
+    /* Install/update the homescreen shortcut before processing autoload.txt. */
+    int shortcut_result = shortcut_install_if_needed();
+    if (shortcut_result < 0) {
+        autoloader_notify("Warning: shortcut %s installation failed",
+                          SHORTCUT_TITLE_ID);
     }
 
     /* Step 4: locate autoload.txt */

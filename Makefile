@@ -18,9 +18,12 @@ TARGET := $(SDK)/target
 # -I. lets the compiler find pldmgr_elf.c generated in the project root
 INCLUDES := -I. -Iinclude -I$(TARGET)/include
 LIBS     := -lSceSystemService -lSceUserService -lSceNetCtl -lpthread
-SRCS     := src/main.c src/launcher.c src/app_killer.c src/notification.c src/sync.c
+LIBS     += -lSceIpmi -lSceAppInstUtil
+SRCS     := src/main.c src/launcher.c src/app_killer.c src/notification.c src/sync.c src/shortcut_installer.c
 CFLAGS   := -Os -Wall -ffunction-sections -fdata-sections
 LDFLAGS  := -Wl,--gc-sections
+
+SHORTCUT_ASSETS := assets/param.json assets/icon0.png
 
 ELF          := autoloader.elf
 PLDMGR_ELF   := pldmgr.elf
@@ -40,7 +43,7 @@ $(PLDMGR_ELF_C): $(PLDMGR_ELF)
 
 # Build autoloader.elf — pldmgr_elf.c is #include-d by src/main.c,
 # so it must NOT be passed again as a separate source file.
-$(ELF): $(PLDMGR_ELF_C) $(SRCS)
+$(ELF): $(PLDMGR_ELF_C) $(SRCS) $(SHORTCUT_ASSETS)
 	@echo "Building $(ELF)..."
 	$(CC) $(CFLAGS) $(INCLUDES) $(LDFLAGS) -o $@ $(SRCS) $(LIBS)
 	@echo "Stripping $(ELF)..."
