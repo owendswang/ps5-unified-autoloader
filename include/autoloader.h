@@ -71,6 +71,9 @@ static const char * const AUTOKILL_EBOOT_TITLE_IDS[] = {
 #define DISC_PLAYER_TITLE_ID "NPXS40140"
 #define DISC_PLAYER_PROCESS  "SceDiscPlayer"
 
+/* WebKit web process name */
+#define BROWSER_PROCESS      "SceNKWebProcess"
+
 /* How long to poll for elfldr readiness before giving up */
 #define ELFLDR_WAIT_RETRIES  50
 #define ELFLDR_WAIT_DELAY_US 200000   /* 200 ms */

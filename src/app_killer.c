@@ -2,6 +2,7 @@
 #include "autoloader.h"
 #include "notification.h"
 
+#include <ps5/kernel.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,6 +29,18 @@ extern int sceLncUtilGetAppIdOfRunningBigApp(void);
 extern int sceLncUtilGetAppTitleId(uint32_t app_id, char *title_id);
 extern int sceLncUtilSuspendApp(uint32_t app_id);
 extern int sceLncUtilKillApp(uint32_t app_id);
+
+/* ShellUI / UserService externs */
+typedef struct {
+    unsigned int size;
+    uint32_t userId;
+} SceShellUIUtilLaunchByUriParam;
+
+extern int sceKernelLoadStartModule(const char *path, size_t args, const void *argp,
+                                    uint32_t flags, const void *pOpt, int *pRes);
+extern int sceUserServiceInitialize(const void *params);
+extern int sceUserServiceGetForegroundUser(int *userId);
+extern int sceUserServiceGetInitialUser(int *userId);
 
 /* -----------------------------------------------------------------------
  * Internal helpers
@@ -257,6 +270,105 @@ int kill_disc_player(void) {
 
     /* Small 0.2s delay just in case to let OS clean up completely */
     usleep(200000);
+
+    return 0;
+}
+
+/* -----------------------------------------------------------------------
+ * handle_browser_app
+ * ----------------------------------------------------------------------- */
+
+/**
+ * Navigate to PS5 Home Screen via libSceShellUIUtil.sprx URI launch.
+ * Uses: pshomeui:navigateToHome?bootCondition=psButton
+ * Based on the Return-to-Home mechanism by LightningMods / etaHEN.
+ */
+static int return_to_home_by_uri(void) {
+    int (*p_sceShellUIUtilInitialize)(void) = NULL;
+    int (*p_sceShellUIUtilLaunchByUri)(const char *uri, SceShellUIUtilLaunchByUriParam *param) = NULL;
+
+    /* Initialize User Service so user queries succeed */
+    int user_prio = 256;
+    int u_init = sceUserServiceInitialize(&user_prio);
+    printf("[autoloader] sceUserServiceInitialize returned: 0x%08x (%d)\n", u_init, u_init);
+
+    int mod = sceKernelLoadStartModule("/system_ex/common_ex/lib/libSceShellUIUtil.sprx", 0, 0, 0, 0, 0);
+    if (mod < 0) {
+        printf("[autoloader] return_to_home_by_uri: sceKernelLoadStartModule failed: 0x%08x (%d)\n", mod, mod);
+        fflush(stdout);
+        return -1;
+    }
+
+    /* Resolve symbols directly via kernel_dynlib_dlsym as in etaHEN */
+    p_sceShellUIUtilInitialize = (void *)kernel_dynlib_dlsym(-1, (uint32_t)mod, "sceShellUIUtilInitialize");
+    p_sceShellUIUtilLaunchByUri = (void *)kernel_dynlib_dlsym(-1, (uint32_t)mod, "sceShellUIUtilLaunchByUri");
+
+    if (!p_sceShellUIUtilInitialize || !p_sceShellUIUtilLaunchByUri) {
+        printf("[autoloader] return_to_home_by_uri: failed to resolve libSceShellUIUtil symbols\n");
+        fflush(stdout);
+        return -1;
+    }
+
+    SceShellUIUtilLaunchByUriParam param;
+    memset(&param, 0, sizeof(param));
+    param.size = sizeof(SceShellUIUtilLaunchByUriParam);
+
+    int ui_init = p_sceShellUIUtilInitialize();
+    printf("[autoloader] sceShellUIUtilInitialize returned: 0x%08x (%d)\n", ui_init, ui_init);
+
+    int u_fg = sceUserServiceGetForegroundUser((int *)&param.userId);
+    printf("[autoloader] sceUserServiceGetForegroundUser returned: 0x%08x (%d), userId=0x%08x\n",
+           u_fg, u_fg, param.userId);
+
+    if (param.userId == 0 || param.userId == (uint32_t)-1) {
+        int u_init_u = sceUserServiceGetInitialUser((int *)&param.userId);
+        printf("[autoloader] sceUserServiceGetInitialUser returned: 0x%08x (%d), userId=0x%08x\n",
+               u_init_u, u_init_u, param.userId);
+    }
+
+    printf("[autoloader] return_to_home_by_uri: launching pshomeui with userId=0x%08x\n", param.userId);
+    fflush(stdout);
+
+    int res = p_sceShellUIUtilLaunchByUri("pshomeui:navigateToHome?bootCondition=psButton", &param);
+    printf("[autoloader] return_to_home_by_uri: sceShellUIUtilLaunchByUri returned: 0x%08x (%d)\n", res, res);
+    fflush(stdout);
+
+    return res;
+}
+
+/**
+ * Handle WebKit Browser (SceNKWebProcess) if running.
+ *
+ * SceNKWebProcess only runs when a WebKit browser webpage is actively open.
+ *
+ * Rather than killing the browser process (which triggers an OS error dialog
+ * and reload), this requests the system to navigate back to the home screen
+ * via libSceShellUIUtil URI launch. The OS automatically closes SceNKWebProcess
+ * upon returning to the home screen.
+ */
+int handle_browser_app(void) {
+    pid_t pid = get_pid_by_name(BROWSER_PROCESS);
+    if (pid <= 0) {
+        printf("[autoloader] handle_browser_app: WebKit browser (%s) not running\n", BROWSER_PROCESS);
+        fflush(stdout);
+        return 0;
+    }
+
+    /* Set entry point ID to 'webkit' so autoloader searches ps5_autoloader_webkit */
+    strncpy(g_entry_point_id, "webkit", sizeof(g_entry_point_id) - 1);
+    g_entry_point_id[sizeof(g_entry_point_id) - 1] = '\0';
+
+    printf("[autoloader] handle_browser_app: WebKit browser (%s) detected (PID: %d)\n", BROWSER_PROCESS, pid);
+    printf("[autoloader] handle_browser_app: Returning to Home via sceShellUIUtilLaunchByUri...\n");
+    fflush(stdout);
+
+    int ret = return_to_home_by_uri();
+    if (ret != 0) {
+        autoloader_notify("Warning: Return to Home returned 0x%08x", ret);
+    }
+
+    /* Small 0.1s delay before continuing */
+    usleep(100000);
 
     return 0;
 }
