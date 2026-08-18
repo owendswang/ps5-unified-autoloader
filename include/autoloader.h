@@ -4,7 +4,7 @@
  * ps5-autoloader — version & config
  * ----------------------------------------------------------------------- */
 
-#define AUTOLOADER_VERSION "0.1.3"
+#define AUTOLOADER_VERSION "0.1.4"
 
 /* Port that elfldr (socksrv) listens on for incoming ELF payloads */
 #define ELFLDR_PORT 9021
@@ -70,6 +70,9 @@ static const char * const AUTOKILL_EBOOT_TITLE_IDS[] = {
 /* BD Disc Player title ID and process name */
 #define DISC_PLAYER_TITLE_ID "NPXS40140"
 #define DISC_PLAYER_PROCESS  "SceDiscPlayer"
+
+/* WebKit web process name */
+#define BROWSER_PROCESS      "SceNKWebProcess"
 
 /* How long to poll for elfldr readiness before giving up */
 #define ELFLDR_WAIT_RETRIES  50

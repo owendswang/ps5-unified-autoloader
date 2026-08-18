@@ -15,4 +15,12 @@ int kill_entry_app(void);
  */
 int kill_disc_player(void);
 
+/**
+ * Handle WebKit Browser (SceNKWebProcess) if running.
+ * Instead of killing (which causes error popups / reload),
+ * navigates back to the PS5 home screen.
+ * Returns 0 if not found or successfully handled, -1 on error.
+ */
+int handle_browser_app(void);
+
 extern char g_entry_point_id[16];
