@@ -211,6 +211,13 @@ int main(void) {
     printf("[autoloader] ps5-autoloader v" AUTOLOADER_VERSION " (" __DATE__ " " __TIME__ ") starting\n");
     fflush(stdout);
 
+    /* Install/update the homescreen shortcut before processing autoload.txt. */
+    int shortcut_result = shortcut_install_if_needed();
+    if (shortcut_result < 0) {
+        autoloader_notify("Warning: shortcut %s installation failed",
+                          SHORTCUT_TITLE_ID);
+    }
+
     /* Step 1: handle WebKit browser if running (navigate to Home) */
     handle_browser_app();
 
@@ -226,13 +233,6 @@ int main(void) {
         printf("[autoloader] ERROR: elfldr did not become available. Aborting.\n");
         fflush(stdout);
         return -1;
-    }
-
-    /* Install/update the homescreen shortcut before processing autoload.txt. */
-    int shortcut_result = shortcut_install_if_needed();
-    if (shortcut_result < 0) {
-        autoloader_notify("Warning: shortcut %s installation failed",
-                          SHORTCUT_TITLE_ID);
     }
 
     /* Step 4: locate autoload.txt */
