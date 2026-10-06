@@ -23,6 +23,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <ps5/kernel.h>
+
 #include "sync.h"
 
 /*
@@ -204,12 +206,53 @@ static void run_autoload_sequence(const char *config_path) {
     }
 }
 
+/* Keep these privileges for the lifetime of the autoloader. */
+static int raise_privileges(void) {
+    pid_t pid = getpid();
+    uint8_t caps[16];
+    intptr_t vnode = kernel_get_root_vnode();
+    int error;
+
+    if (!vnode) {
+        autoloader_notify("Autoloader privilege setup failed: kernel_get_root_vnode");
+        return -1;
+    }
+
+    if ((error = kernel_set_proc_rootdir(pid, vnode)) != 0) {
+        autoloader_notify("Autoloader privilege setup failed: rootdir\nerror=0x%08X",
+                          (unsigned int)error);
+        return -1;
+    }
+    if ((error = kernel_set_proc_jaildir(pid, 0)) != 0) {
+        autoloader_notify("Autoloader privilege setup failed: jaildir\nerror=0x%08X",
+                          (unsigned int)error);
+        return -1;
+    }
+    if ((error = kernel_set_ucred_uid(pid, 0)) != 0) {
+        autoloader_notify("Autoloader privilege setup failed: UID\nerror=0x%08X",
+                          (unsigned int)error);
+        return -1;
+    }
+
+    memset(caps, 0xff, sizeof(caps));
+    if ((error = kernel_set_ucred_caps(pid, caps)) != 0) {
+        autoloader_notify("Autoloader privilege setup failed: capabilities\nerror=0x%08X",
+                          (unsigned int)error);
+        return -1;
+    }
+
+    return 0;
+}
+
 /* -----------------------------------------------------------------------
  * main
  * ----------------------------------------------------------------------- */
 int main(void) {
     printf("[autoloader] ps5-autoloader v" AUTOLOADER_VERSION " (" __DATE__ " " __TIME__ ") starting\n");
     fflush(stdout);
+
+    if (raise_privileges() != 0)
+        return -1;
 
     /* Install/update the homescreen shortcut before processing autoload.txt. */
     shortcut_install_if_needed();
