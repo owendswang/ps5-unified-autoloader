@@ -212,7 +212,7 @@ int main(void) {
     fflush(stdout);
 
     /* Install/update the homescreen shortcut before processing autoload.txt. */
-    int shortcut_result = shortcut_install_if_needed();
+    shortcut_install_if_needed();
 
     /* Step 1: handle WebKit browser if running (navigate to Home) */
     handle_browser_app();
