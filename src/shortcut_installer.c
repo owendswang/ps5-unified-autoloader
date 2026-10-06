@@ -44,15 +44,28 @@ _Static_assert(sizeof(SHORTCUT_TITLE_ID) <= 16,
 
 static int install_file(const char *path, const uint8_t *data, size_t size) {
     FILE *file = fopen(path, "wb");
-    if (!file)
-        return -1;
-
-    if (fwrite(data, size, 1, file) != 1) {
-        fclose(file);
+    if (!file) {
+        int error = errno;
+        autoloader_notify("[shortcut] %s install failed: open file\n%s\nerrno=%d (%s)",
+                          SHORTCUT_TITLE_ID, path, error, strerror(error));
         return -1;
     }
 
-    fclose(file);
+    errno = 0;
+    if (fwrite(data, size, 1, file) != 1) {
+        int error = errno ? errno : EIO;
+        fclose(file);
+        autoloader_notify("[shortcut] %s install failed: write file\n%s\nerrno=%d (%s)",
+                          SHORTCUT_TITLE_ID, path, error, strerror(error));
+        return -1;
+    }
+
+    if (fclose(file) != 0) {
+        int error = errno;
+        autoloader_notify("[shortcut] %s install failed: close/flush file\n%s\nerrno=%d (%s)",
+                          SHORTCUT_TITLE_ID, path, error, strerror(error));
+        return -1;
+    }
     return 0;
 }
 
@@ -64,10 +77,17 @@ static int install_app(const char *title_id, const char *dir) {
     if (kernel_dynlib_handle(-1, "libSceAppInstUtil.sprx", &handle) == 0)
         install_title_dir = (void *)kernel_dynlib_resolve(-1, handle, nid);
 
-    if (install_title_dir)
-        return install_title_dir(title_id, dir, NULL);
-
-    return sceAppInstUtilAppInstallAll(NULL);
+    const char *api = install_title_dir
+        ? "sceAppInstUtilAppInstallTitleDir"
+        : "sceAppInstUtilAppInstallAll";
+    int error = install_title_dir
+        ? install_title_dir(title_id, dir, NULL)
+        : sceAppInstUtilAppInstallAll(NULL);
+    if (error != 0) {
+        autoloader_notify("[shortcut] %s install failed: register app\n%s\nerror=0x%08X",
+                          title_id, api, (unsigned int)error);
+    }
+    return error;
 }
 
 static int needs_update(const char *path, const uint8_t *expected_data,
@@ -141,38 +161,39 @@ int shortcut_install_if_needed(void) {
 
     int error = sceAppInstUtilInitialize();
     if (error != 0) {
-        printf("[shortcut] sceAppInstUtilInitialize: 0x%08X\n", error);
+        autoloader_notify("[shortcut] %s install failed: initialize\nsceAppInstUtilInitialize\nerror=0x%08X",
+                          title_id, (unsigned int)error);
         return -1;
     }
 
     if (mkdir(app_dir, 0755) != 0 && errno != EEXIST) {
-        printf("[shortcut] Failed to create %s (errno=%d)\n", app_dir, errno);
+        int error = errno;
+        autoloader_notify("[shortcut] %s install failed: create directory\n%s\nerrno=%d (%s)",
+                          title_id, app_dir, error, strerror(error));
         sceAppInstUtilTerminate();
         return -1;
     }
     if (mkdir(sce_sys_dir, 0755) != 0 && errno != EEXIST) {
-        printf("[shortcut] Failed to create %s (errno=%d)\n", sce_sys_dir,
-               errno);
+        int error = errno;
+        autoloader_notify("[shortcut] %s install failed: create directory\n%s\nerrno=%d (%s)",
+                          title_id, sce_sys_dir, error, strerror(error));
         sceAppInstUtilTerminate();
         return -1;
     }
 
     if (install_file(param_path, shortcut_param_json,
                      shortcut_param_json_size) != 0) {
-        printf("[shortcut] Failed to install param.json\n");
         sceAppInstUtilTerminate();
         return -1;
     }
     if (install_file(icon_path, shortcut_icon0_png,
                      shortcut_icon0_png_size) != 0) {
-        printf("[shortcut] Failed to install icon0.png\n");
         sceAppInstUtilTerminate();
         return -1;
     }
 
     error = install_app(title_id, "/user/app/");
     if (error != 0) {
-        printf("[shortcut] install_app: 0x%08X\n", error);
         sceAppInstUtilTerminate();
         return -1;
     }
@@ -180,5 +201,5 @@ int shortcut_install_if_needed(void) {
     printf("[shortcut] App launcher installed successfully\n");
     autoloader_notify("WebKit Autoloader App Ready!");
     sceAppInstUtilTerminate();
-    return 0;
+    return 1;
 }

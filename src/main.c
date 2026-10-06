@@ -213,10 +213,6 @@ int main(void) {
 
     /* Install/update the homescreen shortcut before processing autoload.txt. */
     int shortcut_result = shortcut_install_if_needed();
-    if (shortcut_result < 0) {
-        autoloader_notify("Warning: shortcut %s installation failed",
-                          SHORTCUT_TITLE_ID);
-    }
 
     /* Step 1: handle WebKit browser if running (navigate to Home) */
     handle_browser_app();
