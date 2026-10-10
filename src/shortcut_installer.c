@@ -166,6 +166,13 @@ int shortcut_install_if_needed(void) {
         return -1;
     }
 
+    if (mkdir("/user/app", 0770) != 0 && errno != EEXIST) {
+        int error = errno;
+        autoloader_notify("[shortcut] %s install failed: create directory\n/user/app\nerrno=%d (%s)",
+                          title_id, error, strerror(error));
+        sceAppInstUtilTerminate();
+        return -1;
+    }
     if (mkdir(app_dir, 0755) != 0 && errno != EEXIST) {
         int error = errno;
         autoloader_notify("[shortcut] %s install failed: create directory\n%s\nerrno=%d (%s)",
