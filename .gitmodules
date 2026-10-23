@@ -1,3 +1,4 @@
 [submodule "third_party/ps5-payload-manager"]
 	path = third_party/ps5-payload-manager
 	url = https://github.com/owendswang/ps5-payload-manager.git
+	branch = feat/enable-usb-scan-by-default
